@@ -12,12 +12,16 @@ import (
 type Config struct {
 	Count    int    `json:"count"`
 	Next     string `json:"next"`
-	Previous any    `json:"previous"`
+	Previous string `json:"previous"`
 	Results  []struct {
 		Name string `json:"name"`
 		URL  string `json:"url"`
 	} `json:"results"`
 }
+
+var base_url = "https://pokeapi.co/api/v2/location-area/"
+var mapHasBeenCalled bool
+var user_config *Config
 
 func GetRequest(url string, c *Config) *Config {
 	client := &http.Client{
@@ -49,12 +53,38 @@ func GetRequest(url string, c *Config) *Config {
 }
 
 func CommandMap(c *Config) error {
+	if mapHasBeenCalled {
+		c = GetRequest(user_config.Next, c)
+		user_config = c
+	}
+	if !mapHasBeenCalled {
+		c = GetRequest(base_url, c)
+		mapHasBeenCalled = true
+		user_config = c
+	}
 	for _, result := range c.Results {
 		fmt.Println(result.Name)
 	}
+
 	return nil
 }
 
 func CommandMapb(c *Config) error {
+	if user_config == nil || user_config.Previous == "" {
+		c = GetRequest(base_url, user_config)
+		user_config = c
+		user_config.Next = base_url
+		fmt.Println("You are on the first page. Use the map command to navigate forward")
+	} else if user_config != nil && user_config.Previous == "" {
+		user_config.Next = base_url
+		fmt.Println("You are on the first page. Use the map command to navigate forward")
+	} else if user_config != nil && user_config.Previous != "" {
+		c = GetRequest(user_config.Previous, c)
+		user_config = c
+		for _, result := range user_config.Results {
+			fmt.Println(result.Name)
+		}
+	}
+
 	return nil
 }
