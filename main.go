@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/ako1993/pokedexgo/internal/api"
@@ -19,13 +18,14 @@ func main() {
 		text := scanner.Text()
 		cleaned_input := cleanInput(text)
 		user_command := cleaned_input[0]
-		for _, command := range commands {
-			if command.name == user_command {
-				err := command.callback(c)
-				if err != nil {
-					log.Fatal("Error executing command")
-				}
+		_, ok := commands[user_command]
+		if ok {
+			err := commands[user_command].callback(c)
+			if err != nil {
+				fmt.Println(err)
 			}
+		} else {
+			fmt.Println("Unknown command. Use help to see available commands.")
 		}
 	}
 }

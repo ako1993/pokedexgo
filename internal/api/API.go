@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
+
+	"github.com/ako1993/pokedexgo/internal/pokecache"
 )
 
 type Config struct {
@@ -22,68 +23,99 @@ type Config struct {
 var base_url = "https://pokeapi.co/api/v2/location-area/"
 var mapHasBeenCalled bool
 var user_config *Config
+var cache = pokecache.NewCache(7 * time.Second)
+var url_to_cache string
 
-func GetRequest(url string, c *Config) *Config {
+func GetRequest(url string) ([]byte, error) {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.Fatalf("Error creating request %v", err)
+		return nil, err
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Error executing request %v", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		log.Fatalf("Server returned non-200 status: %d %s", resp.StatusCode, resp.Status)
+		err = fmt.Errorf("Response code error")
+		return nil, err
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Error reading response body %v", err)
+		return nil, err
 	}
 
-	err = json.Unmarshal(body, &c)
-	if err != nil {
-		log.Fatal(err)
+	return body, nil
+}
+
+func GetLocationPage(url string) (*Config, error) {
+	data, ok := cache.Get(url)
+	if !ok {
+		var err error
+		data, err = GetRequest(url)
+		if err != nil {
+			return nil, err
+		}
+		cache.Add(url, data)
 	}
-	return c
+	var config Config
+	err := json.Unmarshal(data, &config)
+	if err != nil {
+		return nil, err
+	}
+	return &config, nil
+
 }
 
 func CommandMap(c *Config) error {
 	if mapHasBeenCalled {
-		c = GetRequest(user_config.Next, c)
+		url_to_cache = user_config.Next
+		c, err := GetLocationPage(url_to_cache)
+		if err != nil {
+			return err
+		}
 		user_config = c
-	}
-	if !mapHasBeenCalled {
-		c = GetRequest(base_url, c)
-		mapHasBeenCalled = true
-		user_config = c
-	}
-	for _, result := range c.Results {
-		fmt.Println(result.Name)
+		for _, result := range user_config.Results {
+			fmt.Println(result.Name)
+		}
 	}
 
+	if !mapHasBeenCalled {
+		url_to_cache = base_url
+		c, err := GetLocationPage(base_url)
+		if err != nil {
+			return err
+		}
+		user_config = c
+		for _, result := range user_config.Results {
+			fmt.Println(result.Name)
+		}
+		mapHasBeenCalled = true
+
+	}
 	return nil
 }
 
 func CommandMapb(c *Config) error {
 	if user_config == nil || user_config.Previous == "" {
-		c = GetRequest(base_url, user_config)
-		user_config = c
-		user_config.Next = base_url
 		fmt.Println("You are on the first page. Use the map command to navigate forward")
 	} else if user_config != nil && user_config.Previous == "" {
-		user_config.Next = base_url
 		fmt.Println("You are on the first page. Use the map command to navigate forward")
 	} else if user_config != nil && user_config.Previous != "" {
-		c = GetRequest(user_config.Previous, c)
+		url_to_cache = user_config.Previous
+		c, err := GetLocationPage(url_to_cache)
+		if err != nil {
+			return err
+		}
 		user_config = c
 		for _, result := range user_config.Results {
 			fmt.Println(result.Name)
 		}
+
 	}
 
 	return nil
