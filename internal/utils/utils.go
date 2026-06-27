@@ -1,10 +1,10 @@
-package main
+package utils
 
 import (
 	"strings"
 )
 
-func cleanInput(text string) []string {
+func CleanInput(text string) []string {
 	var results []string
 	words := strings.Fields(text)
 	for _, word := range words {

@@ -6,9 +6,11 @@ import (
 	"os"
 
 	"github.com/ako1993/pokedexgo/internal/api"
+	"github.com/ako1993/pokedexgo/internal/utils"
 )
 
 var c *api.Config
+var location string
 
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
@@ -16,11 +18,14 @@ func main() {
 		fmt.Print("Pokedex > ")
 		scanner.Scan()
 		text := scanner.Text()
-		cleaned_input := cleanInput(text)
+		cleaned_input := utils.CleanInput(text)
 		user_command := cleaned_input[0]
 		_, ok := commands[user_command]
 		if ok {
-			err := commands[user_command].callback(c)
+			if user_command == "explore" {
+				location = location + cleaned_input[1]
+			}
+			err := commands[user_command].callback(c, location)
 			if err != nil {
 				fmt.Println(err)
 			}
